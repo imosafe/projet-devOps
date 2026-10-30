@@ -1,0 +1,8 @@
+   fastapi
+   uvicorn
+   itsdangerous
+   httpx
+   requests
+   PyYAML
+   argon2-cffi
+   pydantic
