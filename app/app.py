@@ -105,7 +105,8 @@ async def headers(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def handle_error(request: Request, exc: Exception):
-    return HTMLResponse("<pre>" + traceback.format_exc() + "</pre>", status_code=500)
+    log.exception("unhandled error on %s", request.url.path)
+    return JSONResponse({"error": "internal error"}, 500) 
 
 
 @app.get("/health")
