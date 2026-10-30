@@ -30,12 +30,16 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 DB_PATH = os.environ.get("DB_PATH", "shop.db")
 UPLOAD_DIR = (Path(__file__).resolve().parent / "uploads").resolve()s
 FETCH_ALLOWED_HOSTS = {"example.com","api.github.com"}
+PRODUCTION= os.environ.get("ENV","dev") == "production"
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("minishop")
 
-app = FastAPI(title="MiniShop", debug=True)
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+app = FastAPI(title="MiniShop",
+            docs_url=None if PRODUCTION else "/docs",
+            openapi_url=None PRODUCTION else "/openapi.json",
+        )
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=True, same_site="lax")
 
 ph=PasswordHasher()
 
