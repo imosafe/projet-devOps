@@ -1,0 +1,13 @@
+Dokerfile
+.dockerignore
+.env
+.env.*
+!.env.example
+**/*.db
+**/__pycache__
+**/*.pyc
+.venv
+.pytest_cache
+uploads/*
+!uploads/hello.txt
+
