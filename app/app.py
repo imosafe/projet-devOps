@@ -20,6 +20,7 @@ from fastapi import Body, FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
 from argon2 import PasswordHasher
+from pydantic import BaseModel, IPvAnyAddress
 from argon2.exceptions import VerifyMismatchError
 
 SECRET_KEY = "super-secret-key-123"
@@ -107,8 +108,11 @@ def search(q: str = ""):
 
 
 @app.get("/ping")
-def ping(host: str = "127.0.0.1"):
-    out = subprocess.run(f"ping -c 1 {host}", shell=True, capture_output=True, text=True)
+def ping(host: IPvAnyAddress):
+    try: 
+        out = subprocess.run(["ping","-c","1",str(host)], check=False, timeout=5, capture_output=True, text=True)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="ping timeout")
     return PlainTextResponse(out.stdout + out.stderr)
 
 
