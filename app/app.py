@@ -12,6 +12,7 @@ import random
 import sqlite3
 import subprocess
 import traceback
+import ast
 
 import requests
 import uvicorn
@@ -128,7 +129,14 @@ def get_file(name: str):
 
 @app.post("/calc")
 def calc(data: dict = Body(...)):
-    return {"result": str(eval(data["expr"]))}
+    expr = data.get("expr")
+    if not isinstance(expr, str) or len(expr)>200:
+        raise HTTPException(status_code=422, detail="invalid Expression")
+    try : 
+        res =  ast.literal_eval(expr)
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+        raise HTTPException(status_code=400, detail="invalid expression") 
+    return {"result": str(res)}
 
 
 @app.post("/import-yaml")
