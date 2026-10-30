@@ -26,10 +26,9 @@ from argon2 import PasswordHasher
 from pydantic import BaseModel, IPvAnyAddress
 from argon2.exceptions import VerifyMismatchError
 
-SECRET_KEY = "super-secret-key-123"
+SECRET_KEY = os.environ["SECRET_KEY"]
 DB_PATH = os.environ.get("DB_PATH", "shop.db")
-UPLOAD_DIR = (Path(__file__).resolve().parent / "uploads").resolve()
-AWS_KEY = "AKIAIOSFODNN7EXAMPLE"
+UPLOAD_DIR = (Path(__file__).resolve().parent / "uploads").resolve()s
 FETCH_ALLOWED_HOSTS = {"example.com","api.github.com"}
 
 logging.basicConfig(level=logging.INFO)
