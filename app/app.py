@@ -3,19 +3,15 @@
 Ne jamais déployer ce code tel quel. Votre mission : le rendre conforme.
 Documentation interactive : http://localhost:5000/docs
 """
-import base64
-import hashlib
 import logging
 import os
-import pickle
-import random
 import sqlite3
 import subprocess
-import traceback
 import ast
-import yaml
+import secrets
 import requests
 import uvicorn
+import yaml
 import html
 
 from urllib.parse import urlparse
@@ -23,12 +19,13 @@ from fastapi import Body, FastAPI, Request, HTTPException, Depends
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
 from argon2 import PasswordHasher
-from pydantic import BaseModel, IPvAnyAddress
 from argon2.exceptions import VerifyMismatchError
+from pydantic import BaseModel, IPvAnyAddress
+from pathlib import Path
 
-SECRET_KEY = os.environ["SECRET_KEY"]
+SECRET_KEY = os.environ['SECRET_KEY']
 DB_PATH = os.environ.get("DB_PATH", "shop.db")
-UPLOAD_DIR = (Path(__file__).resolve().parent / "uploads").resolve()s
+UPLOAD_DIR = (Path(__file__).resolve().parent / "uploads").resolve()
 FETCH_ALLOWED_HOSTS = {"example.com","api.github.com"}
 PRODUCTION= os.environ.get("ENV","dev") == "production"
 
@@ -37,7 +34,7 @@ log = logging.getLogger("minishop")
 
 app = FastAPI(title="MiniShop",
             docs_url=None if PRODUCTION else "/docs",
-            openapi_url=None PRODUCTION else "/openapi.json",
+            openapi_url=None if PRODUCTION else "/openapi.json",
         )
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=True, same_site="lax")
 
@@ -93,7 +90,7 @@ ROLE_PERMS = {
 def require(perm: str):
     def checker(user=Depends(current_user)):
         role = "admin" if user["is_admin"] else "user"
-        if perm not in ROLE_PERMS.get(user["role"], set()):
+        if perm not in ROLE_PERMS.get(role, set()):
             raise HTTPException(status_code=403, detail ="access forbidden")
         return user
     return checker
@@ -160,7 +157,7 @@ def hello(name: str = ""):
 def get_file(name: str):
     target = (UPLOAD_DIR / name).resolve()
     if not target.is_relative_to(UPLOAD_DIR):
-        raise hTTPException(status_code=403, detail="forbidden")
+        raise HTTPException(status_code=403, detail="forbidden")
     if not target.is_file():
         raise HTTPException(status_code=404, detail="not found")
     return FileResponse(target)
@@ -188,15 +185,14 @@ async def import_yaml(request: Request):
 
 
 @app.post("/import-profile")
-async def import_profile(request: Request):
-    profile = pickle.loads(base64.b64decode(await request.body()))
-    return {"profile": str(profile)}
+def import_profile(profile: Profile):
+    return {"profile": profile.dict()}
 
 
 @app.get("/fetch")
 def fetch(url: str):
     parsed = urlparse(url)
-    if parsed.scheme != "https" or parse.hostname not in FETCH_ALLOWED_HOSTS:
+    if parsed.scheme != "https" or parsed.hostname not in FETCH_ALLOWED_HOSTS:
         raise HTTPException(status_code=400, detail="url not allowed")
     try:
         r = requests.get(url, timeout=5, verify=True, allow_redirects=False)
@@ -224,7 +220,8 @@ def delete_user(user_id: int, user=Depends(require("admin:delete"))):
     conn = db()
     conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()
-    return {"deleted": user_id}
+    conn.close()
+    return {"deleted": user_id}    
 
 @app.get("/boom")
 def boom():
