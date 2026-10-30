@@ -14,10 +14,10 @@ import subprocess
 import traceback
 import ast
 import yaml
-
 import requests
 import uvicorn
-import yaml
+
+from urllib.parse import urlparse
 from fastapi import Body, FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -29,6 +29,7 @@ SECRET_KEY = "super-secret-key-123"
 DB_PATH = os.environ.get("DB_PATH", "shop.db")
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 AWS_KEY = "AKIAIOSFODNN7EXAMPLE"
+FETCH_ALLOWED_HOSTS = {"example.com","api.github.com"}
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger("minishop")
@@ -157,7 +158,13 @@ async def import_profile(request: Request):
 
 @app.get("/fetch")
 def fetch(url: str):
-    r = requests.get(url, verify=False)
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parse.hostname not in FETCH_ALLOWED_HOSTS:
+        raise HTTPException(status_code=400, detail="url not allowed")
+    try:
+        r = requests.get(url, timeout=5, verify=True, allow_redirects=False)
+    except requests.RequestException:
+        raise HTTPException(status_code=502, detail="upstream error")
     return PlainTextResponse(r.text[:500])
 
 
