@@ -19,7 +19,7 @@ import uvicorn
 import html
 
 from urllib.parse import urlparse
-from fastapi import Body, FastAPI, Request, HTTPException
+from fastapi import Body, FastAPI, Request, HTTPException, Depends
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
 from argon2 import PasswordHasher
@@ -30,15 +30,11 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 DB_PATH = os.environ.get("DB_PATH", "shop.db")
 UPLOAD_DIR = (Path(__file__).resolve().parent / "uploads").resolve()s
 FETCH_ALLOWED_HOSTS = {"example.com","api.github.com"}
-PRODUCTION= os.environ.get("ENV","dev") == "production"
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("minishop")
 
-app = FastAPI(title="MiniShop",
-            docs_url=None if PRODUCTION else "/docs",
-            openapi_url=None PRODUCTION else "/openapi.json",
-        )
+app = FastAPI(title="MiniShop", debug=True)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=True, same_site="lax")
 
 ph=PasswordHasher()
@@ -48,10 +44,9 @@ def db():
     conn.row_factory = sqlite3.Row
     return conn
 
-
-def md5(value):
-    return hashlib.md5(value.encode()).hexdigest()
-
+class Profile(BaseModel):
+    name: str
+    age: int
 
 def init_db():
     conn = db()
@@ -77,6 +72,15 @@ def init_db():
                      [(2, "Facture Alice", 42.0), (3, "Facture Bob", 99.0)])
     conn.commit()
     conn.close()
+
+def current_user(request:Request):
+    uid= request.session.get("user_id")
+    if uid is None :
+        raise HTTPException(status_code=401, detail="login required")
+    row = db().execute("SELECT id, username, is_admin FROM users WHERE id=?", (uid,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="login required")
+    return dict(row)
 
 
 @app.exception_handler(Exception)
@@ -177,12 +181,10 @@ def fetch(url: str):
 
 
 @app.get("/invoices/{invoice_id}")
-def invoice(invoice_id: int, request: Request):
-    if "user_id" not in request.session:
-        return JSONResponse({"error": "login required"}, status_code=401)
-    row = db().execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+def invoice(invoice_id: int, user=Depends(current_user)):
+    row = db().execute("SELECT * FROM invoices WHERE id = ? AND owner_id=?", (invoice_id,user["id"])).fetchone()
     if not row:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        raise HTTPException(status_code=404, detail="not found")
     return dict(row)
 
 
