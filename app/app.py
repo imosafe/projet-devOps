@@ -27,7 +27,7 @@ from argon2.exceptions import VerifyMismatchError
 
 SECRET_KEY = "super-secret-key-123"
 DB_PATH = os.environ.get("DB_PATH", "shop.db")
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+UPLOAD_DIR = (Path(__file__).resolve().parent / "uploads").resolve()
 AWS_KEY = "AKIAIOSFODNN7EXAMPLE"
 FETCH_ALLOWED_HOSTS = {"example.com","api.github.com"}
 
@@ -126,7 +126,12 @@ def hello(name: str = ""):
 
 @app.get("/files/{name:path}")
 def get_file(name: str):
-    return FileResponse(os.path.join(UPLOAD_DIR, name))
+    target = (UPLOAD_DIR / name).resolve()
+    if not target.is_relative_to(UPLOAD_DIR):
+        raise hTTPException(status_code=403, detail="forbidden")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(target)
 
 
 @app.post("/calc")
