@@ -16,6 +16,7 @@ import ast
 import yaml
 import requests
 import uvicorn
+import html
 
 from urllib.parse import urlparse
 from fastapi import Body, FastAPI, Request, HTTPException
@@ -121,8 +122,7 @@ def ping(host: IPvAnyAddress):
 
 @app.get("/hello")
 def hello(name: str = ""):
-    return HTMLResponse(f"<h1>Bonjour {name}</h1>")
-
+    return HTMLResponse(f"<h1>Bonjour {html.escape(name)}</h1>")
 
 @app.get("/files/{name:path}")
 def get_file(name: str):
