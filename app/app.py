@@ -82,6 +82,17 @@ def current_user(request:Request):
         raise HTTPException(status_code=401, detail="login required")
     return dict(row)
 
+ROLE_PERMS = {
+    "user": {"invoice:read"},
+    "admin": {"invoice:read", "admin:read", "admin:delete"},
+}
+def require(perm: str):
+    def checker(user=Depends(current_user)):
+        role = "admin" if user["is_admin"] else "user"
+        if perm not in ROLE_PERMS.get(user["role"], set()):
+            raise HTTPException(status_code=403, detail ="access forbidden")
+        return user
+    return checker
 
 @app.exception_handler(Exception)
 async def handle_error(request: Request, exc: Exception):
@@ -189,22 +200,17 @@ def invoice(invoice_id: int, user=Depends(current_user)):
 
 
 @app.get("/admin/users")
-def admin_users(request: Request):
-    if "user_id" not in request.session:
-        return JSONResponse({"error": "login required"}, status_code=401)
+def admin_users(user=Depends(require("admin:read"))):
     rows = db().execute("SELECT id, username, is_admin FROM users").fetchall()
     return [dict(r) for r in rows]
 
 
 @app.delete("/users/{user_id}")
-def delete_user(user_id: int, request: Request):
-    if "user_id" not in request.session:
-        return JSONResponse({"error": "login required"}, status_code=401)
+def delete_user(user_id: int, user=Depends(require("admin:delete"))):
     conn = db()
     conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     conn.commit()
     return {"deleted": user_id}
-
 
 @app.get("/boom")
 def boom():
