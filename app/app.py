@@ -94,6 +94,15 @@ def require(perm: str):
         return user
     return checker
 
+@app.middleware("http")
+async def headers(request: Request, call_next):
+    r = await call_next(request)
+    r.headers["Content-Security-Policy"] = "default-src 'self'"
+    r.headers["X-Content-Type-Options"] = "nosniff"
+    r.headers["Strict-Transport-Security"]= "max-age=63072000; includeSubDomains"
+    r.headers["X-Frame-Options"]= "DENY"
+    return r
+
 @app.exception_handler(Exception)
 async def handle_error(request: Request, exc: Exception):
     return HTMLResponse("<pre>" + traceback.format_exc() + "</pre>", status_code=500)
