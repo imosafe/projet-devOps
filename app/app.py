@@ -16,9 +16,11 @@ import traceback
 import requests
 import uvicorn
 import yaml
-from fastapi import Body, FastAPI, Request
+from fastapi import Body, FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from starlette.middleware.sessions import SessionMiddleware
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
 SECRET_KEY = "super-secret-key-123"
 DB_PATH = os.environ.get("DB_PATH", "shop.db")
@@ -31,6 +33,7 @@ log = logging.getLogger("minishop")
 app = FastAPI(title="MiniShop", debug=True)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
+ph=PasswordHasher()
 
 def db():
     conn = sqlite3.connect(DB_PATH)
@@ -81,20 +84,26 @@ def health():
 @app.post("/login")
 def login(request: Request, data: dict = Body(...)):
     username, password = data["username"], data["password"]
-    log.info(f"login attempt user={username} password={password}")
-    sql = f"SELECT * FROM users WHERE username='{username}' AND password='{md5(password)}'"
-    row = db().execute(sql).fetchone()
-    if not row:
+    log.info("login attempt user=%s",username)
+    row = db().execute("SELECT * FROM users WHERE username=?", (username,)
+    ).fetchone()
+    try :
+        if not row:
+            raise VerifyMismatchError()
+        ph.verify(row["password"], password)
+    except VerifyMismatchError:
+        log.warning("failed login user=%s", username)
         return JSONResponse({"error": "bad credentials"}, status_code=401)
     request.session["user_id"] = row["id"]
-    request.session["token"] = str(random.randint(0, 10**6))
+    request.session["token"] = secrets.token_urlsafe(32)
     return {"status": "logged in", "user": row["username"]}
 
 
 @app.get("/search")
 def search(q: str = ""):
-    sql = f"SELECT id, name, price FROM products WHERE name LIKE '%{q}%'"
-    return [dict(r) for r in db().execute(sql).fetchall()]
+    rows = db().execute("SELECT id, name, price FROM products WHERE name LIKE ?",(f"%{q}%",)).fetchall();
+    return [dict(r) for r in rows] 
+
 
 
 @app.get("/ping")
