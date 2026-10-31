@@ -1,0 +1,80 @@
+name: "security"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "47 6 * * 4"  
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+
+
+concurrency:
+  group: workflow-security-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs: 
+  bandit:
+    runs-on: ubuntu-latest
+    steps: 
+        - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+          with: 
+            persist-credentials: false 
+        - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+          with:
+            python-version: '3.12'
+        - run: pip install bandit
+        - run: bandit -r app -ll
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps: 
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: 
+          persist-credentials: false 
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+        with:
+          python-version: '3.12'
+      - run: pip install pip-audit
+      - run: pip-audit -r app/requirements.txt --strict
+  trivy:
+    runs-on: ubuntu-latest
+    steps: 
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: 
+          persist-credentials: false 
+      - uses: aquasecurity/trivy-action@81b9a6f5abb1047d697af7a3ca18c13f55a97315  
+        with:
+          scan-type: 'fs'
+          scan-ref: "."
+          scanners: vuln,secret,misconfig
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps: 
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: 
+          fetch-depth: 0
+          persist-credentials: false 
+      - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc  
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  sbom:
+    runs-on: ubuntu-latest
+    steps: 
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: 
+          persist-credentials: false 
+      - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
+        with:
+          python-version: '3.12'
+      - run: pip install cyclonedx-bom
+      - run: cyclonedx-py requirements app/requirements.txt -o sbom.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sbom
+          path: sbom.json

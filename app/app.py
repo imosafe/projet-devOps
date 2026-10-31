@@ -13,6 +13,7 @@ import requests
 import uvicorn
 import yaml
 import html
+import ipaddress
 
 from urllib.parse import urlparse
 from fastapi import Body, FastAPI, Request, HTTPException, Depends
@@ -20,7 +21,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from starlette.middleware.sessions import SessionMiddleware
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from pydantic import BaseModel, IPvAnyAddress
+from pydantic import BaseModel
 from pathlib import Path
 
 SECRET_KEY = os.environ['SECRET_KEY']
@@ -141,9 +142,13 @@ def search(q: str = ""):
 
 
 @app.get("/ping")
-def ping(host: IPvAnyAddress):
+def ping(host: str):
+    try:
+        ip=ipaddress.ip_address(host)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid host")
     try: 
-        out = subprocess.run(["ping","-c","1",str(host)], check=False, timeout=5, capture_output=True, text=True)
+        out = subprocess.run(["ping","-c","1",str(ip)], check=False, timeout=5, capture_output=True, text=True)
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="ping timeout")
     return PlainTextResponse(out.stdout + out.stderr)
